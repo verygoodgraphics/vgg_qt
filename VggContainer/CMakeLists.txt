@@ -11,12 +11,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS OpenGLWidgets Widgets)
 
-add_library(VggContainer STATIC
+set(CONTAINER_SOURCE
   include/VggContainer/QVggOpenGLWidget.hpp
   include/VggContainer/QVggEventAdapter.hpp
   src/QVggOpenGLWidget.cpp
   src/QVggEventAdapter.cpp
 )
+
+if(MSVC)
+  add_library(VggContainer SHARED ${CONTAINER_SOURCE})
+else()
+  add_library(VggContainer STATIC ${CONTAINER_SOURCE})
+endif()
 
 target_include_directories(VggContainer PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -30,5 +36,11 @@ target_link_libraries(VggContainer PRIVATE
 
 target_compile_definitions(VggContainer PRIVATE VGGCONTAINER_LIBRARY)
 
-target_link_libraries(VggContainer PRIVATE vgg_container)
+if(MSVC)
+  target_link_libraries(VggContainer PRIVATE vgg_container vgg_application)
+  set_target_properties(VggContainer PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+else()
+  target_link_libraries(VggContainer PRIVATE vgg_container)
+endif()
+
 target_link_directories(VggContainer PUBLIC external/lib)
