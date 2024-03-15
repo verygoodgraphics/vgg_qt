@@ -9,6 +9,12 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(MSVC)
+    if(NOT CMAKE_BUILD_TYPE)
+        set(CMAKE_BUILD_TYPE "Debug")
+    endif()
+endif()
+
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS OpenGLWidgets Widgets)
 
@@ -81,4 +87,15 @@ install(TARGETS Counter
 
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(Counter)
+endif()
+
+if(MSVC)
+    add_custom_command(TARGET Counter POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${VggContainer_BINARY_DIR}/${CMAKE_BUILD_TYPE}/VggContainer.dll"
+        "${VggContainer_SOURCE_DIR}/external/lib/icudtl.dat"
+        "${VggContainer_SOURCE_DIR}/external/lib/libnode.dll"
+        "${VggContainer_SOURCE_DIR}/external/lib/node.exe"
+        "${VggContainer_SOURCE_DIR}/external/lib/vgg_container.dll"
+        "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}"
+    )
 endif()
