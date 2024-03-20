@@ -91,11 +91,16 @@ endif()
 
 if(MSVC)
     add_custom_command(TARGET Counter POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${VggContainer_BINARY_DIR}/${CMAKE_BUILD_TYPE}/VggContainer.dll"
+        #"${VggContainer_BINARY_DIR}/${CMAKE_BUILD_TYPE}/VggContainer.dll"
         "${VggContainer_SOURCE_DIR}/external/lib/icudtl.dat"
         "${VggContainer_SOURCE_DIR}/external/lib/libnode.dll"
         "${VggContainer_SOURCE_DIR}/external/lib/node.exe"
         "${VggContainer_SOURCE_DIR}/external/lib/vgg_container.dll"
+        "${VggContainer_SOURCE_DIR}/external/lib/skia.dll"
+        "${VggContainer_SOURCE_DIR}/external/lib/skparagraph.dll"
+        "${VggContainer_SOURCE_DIR}/external/lib/skshaper.dll"
+        "${VggContainer_SOURCE_DIR}/external/lib/sktext.dll"
+        "${VggContainer_SOURCE_DIR}/external/lib/skunicode.dll"
         "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}"
     )
 endif()
