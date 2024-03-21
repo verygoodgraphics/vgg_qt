@@ -2,21 +2,30 @@
 #include "Counter.h"
 
 #include "VggContainer/QVggEventAdapter.hpp"
+#include "VGG/Environment.h"
 
 #include <QApplication>
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
   QApplication a(argc, argv);
 
+  VGG::Environment::setUp();
   QVggEventAdapter::setup();
 
   // MainWindow w;
   // w.resize(1920, 1080);
   // w.show();
 
+#ifdef _MSC_VER
+  Counter cppCounter1{"../../assets/counter_with_js.daruma", true};
+#else
   Counter cppCounter1{"../../../../Counter/assets/counter_without_js.daruma",
-                      false };
-  if (auto widget = cppCounter1.widget()) {
+                      false};
+#endif
+
+  if (auto widget = cppCounter1.widget())
+  {
     widget->setWindowTitle("cpp counter1");
     widget->move(0, 0);
   }
@@ -40,5 +49,7 @@ int main(int argc, char *argv[]) {
   //   widget->move(800, 800);
   // }
 
+  QObject::connect(&a, &QApplication::aboutToQuit, [&]()
+                   { VGG::Environment::tearDown(); });
   return a.exec();
 }
