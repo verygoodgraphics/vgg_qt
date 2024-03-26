@@ -2,7 +2,7 @@
 #include "Counter.h"
 
 #include "VggContainer/QVggEventAdapter.hpp"
-#include "VGG/Environment.h"
+#include "VGG/Environment.hpp"
 
 #include <QApplication>
 
