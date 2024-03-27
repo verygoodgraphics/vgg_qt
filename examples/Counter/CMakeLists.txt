@@ -101,6 +101,7 @@ if(MSVC)
         "${VggContainer_SOURCE_DIR}/external/lib/skshaper.dll"
         "${VggContainer_SOURCE_DIR}/external/lib/sktext.dll"
         "${VggContainer_SOURCE_DIR}/external/lib/skunicode.dll"
+        "${VggContainer_SOURCE_DIR}/external/lib/SDL2.dll"
         "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}"
     )
 endif()
