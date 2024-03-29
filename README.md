@@ -18,10 +18,10 @@ erDiagram
 
 1. [Build](https://github.com/verygoodgraphics/vgg_runtime?tab=readme-ov-file#qt-building-example) VggContainer.
 2. Build Counter example.  
-    Change the vgg file [path](https://github.com/verygoodgraphics/vgg_qt/blob/main/examples/Counter/main.cpp#L17) if needed.
+   >Note: Change the vgg file [path](https://github.com/verygoodgraphics/vgg_qt/blob/main/examples/Counter/main.cpp#L17) if needed.
 
 ``` bash
-cd examples/Counter
+cd /path/to/repo/examples/Counter
 
 # Remove comment if you're building with clang
 # export CC=clang
@@ -29,11 +29,16 @@ cd examples/Counter
 
 mkdir build
 cd build
-cmake -DCMAKE_PREFIX_PATH=~/Qt/6.6.1/macos -S .. -B .
-make
-./Counter.app/Contents/MacOS/Counter
 
+# macOS
+cmake .. -DCMAKE_PREFIX_PATH=~/Qt/6.6.1/macos
+cmake --build . --parallel 
+
+# windows
+cmake .. -DCMAKE_PREFIX_PATH=C:\Qt\6.6.3\msvc2019_64 -DCMAKE_BUILD_TYPE=Release
+cmake --build . --parallel --config Release
 ```
+
 ## Usage
 ### CMake Project
 1. Add `VggContainer` library.
