@@ -1,27 +1,59 @@
 #include "vggquickcontainer.h"
 
-#include <QPainter>
+#include <QSGSimpleTextureNode>
+#include <QSGDynamicTexture>
 
-VggQuickContainer::VggQuickContainer(QQuickItem *parent)
-    : QQuickPaintedItem(parent)
+class VggTexture : public QSGDynamicTexture
 {
-    // By default, QQuickItem does not draw anything. If you subclass
-    // QQuickItem to create a visual item, you will need to uncomment the
-    // following line and re-implement updatePaintNode()
+public:
+  virtual bool updateTexture() override
+  {
+    return false;
+  }
+  virtual qint64 comparisonKey() const override
+  {
+    return 0;
+  }
+  virtual QSize textureSize() const override
+  {
+    return QSize(1, 1);
+  }
+  virtual bool hasMipmaps() const override
+  {
+    return false;
+  }
+  virtual bool hasAlphaChannel() const override
+  {
+    return true;
+  }
+};
 
-    // setFlag(ItemHasContents, true);
-}
-
-void VggQuickContainer::paint(QPainter *painter)
+VggQuickContainer::VggQuickContainer(QQuickItem* parent)
+  : QQuickItem(parent)
 {
-    QPen pen(QColorConstants::Red, 2);
-    QBrush brush(QColorConstants::Red);
+  // By default, QQuickItem does not draw anything. If you subclass
+  // QQuickItem to create a visual item, you will need to uncomment the
+  // following line and re-implement updatePaintNode()
+  setFlag(ItemHasContents, true);
 
-    painter->setPen(pen);
-    painter->setBrush(brush);
-    painter->drawRect(0, 0, 100, 100);
+  printf("fileSource: %s\n", m_fileSource.toStdString().c_str());
 }
 
 VggQuickContainer::~VggQuickContainer()
 {
+}
+
+QSGNode* VggQuickContainer::updatePaintNode(
+  QSGNode*             oldNode,
+  UpdatePaintNodeData* updatePaintNodeData)
+{
+  QSGSimpleTextureNode* n = static_cast<QSGSimpleTextureNode*>(oldNode);
+  if (!n)
+  {
+    n = new QSGSimpleTextureNode();
+    auto t = new VggTexture();
+    n->setTexture(t);
+  }
+  n->setRect(boundingRect());
+  return n;
 }
