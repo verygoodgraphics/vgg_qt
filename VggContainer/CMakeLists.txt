@@ -35,3 +35,7 @@ target_compile_definitions(VggContainer PRIVATE VGGCONTAINER_LIBRARY)
 target_link_libraries(VggContainer PRIVATE vgg_container)
 
 target_link_directories(VggContainer PUBLIC external/lib)
+
+
+# example
+add_subdirectory(example)

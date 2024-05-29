@@ -4,39 +4,65 @@
 
 #include <string>
 
-Counter::Counter(const std::string &vggFilePath, bool isJsCounter, QWidget* parent) {
+Counter::Counter(const std::string& vggFilePath, bool isJsCounter, QWidget* parent)
+{
   m_vggContainer.show();
-
   m_vggContainer.load(vggFilePath);
 
-  if (isJsCounter) {
+  if (isJsCounter)
+  {
     return;
   }
 
-  m_vggContainer.setEventListener([](std::shared_ptr<VGG::ISdk> vggSdk,
-                                     std::string type, std::string targetId,
-                                     std::string targetPath) {
-    if (targetId == "#counterButton" || targetId == "#counterButtonText") {
-      auto buttonPath = "/frames/0/childObjects/1/style/fills/0/color/alpha";
+  m_vggContainer.setEventListener(
+    [](
+      std::shared_ptr<VGG::ISdk> vggSdk,
+      std::string                type,
+      std::string                targetId,
+      std::string                targetName)
+    {
+      if (targetName == "#counterButton" || targetName == "#counterButtonText")
+      {
 
-      if (type == "mousedown") {
-        nlohmann::json alpha = 1.0;
-        vggSdk->designDocumentReplaceAt(buttonPath, alpha.dump());
-      } else if (type == "mouseup") {
-        nlohmann::json alpha = 0.5;
-        vggSdk->designDocumentReplaceAt(buttonPath, alpha.dump());
+        if (type == "mousedown")
+        {
+          // change button background color alpha
+          {
+            const auto  id = "#counterButton";
+            const auto& e = vggSdk->getElement(id);
+            auto        j = nlohmann::json::parse(e);
+            j["style"]["fills"][0]["color"]["alpha"] = 1.0;
+            vggSdk->updateElement(id, j.dump());
+          }
+        }
+        else if (type == "mouseup")
+        {
+          // change button background color alpha
+          {
+            const auto  id = "#counterButton";
+            const auto& e = vggSdk->getElement(id);
+            auto        j = nlohmann::json::parse(e);
+            j["style"]["fills"][0]["color"]["alpha"] = 0.5;
+            vggSdk->updateElement(id, j.dump());
+          }
 
-        // get last value
-        auto valuePath = "/frames/0/childObjects/3/content";
-        auto value = vggSdk->designDocumentValueAt(valuePath);
+          // update count number
+          {
+            // get count number
+            const auto  id = "#count";
+            const auto& e = vggSdk->getElement(id);
+            const auto& j = nlohmann::json::parse(e);
+            auto        count = std::stoi(j["content"].get<std::string>());
 
-        auto jsonValue = nlohmann::json::parse(value);
-        auto count = std::stoi(jsonValue.get<std::string>());
-        ++count;
-        jsonValue = std::to_string(count);
+            // increase
+            ++count;
 
-        vggSdk->designDocumentReplaceAt(valuePath, jsonValue.dump());
+            // update count text
+            nlohmann::json patch;
+            patch["content"] = std::to_string(count);
+            vggSdk->updateElement(id, patch.dump());
+          }
+        }
       }
-    }
-  });
+    });
 }
