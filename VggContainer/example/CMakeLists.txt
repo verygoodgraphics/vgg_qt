@@ -53,14 +53,12 @@ target_link_libraries(Counter PRIVATE
 )
 
 # libs
-add_subdirectory(../../VggContainer VggContainerBin)
 target_link_libraries(Counter PRIVATE
     VggContainer
 )
 target_include_directories(Counter PRIVATE
   external
 )
-
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
