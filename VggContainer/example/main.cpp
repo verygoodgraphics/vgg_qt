@@ -18,6 +18,23 @@ int main(int argc, char* argv[])
 
   VGG::Environment::setUp();
   QVggEventAdapter::setup();
+  QSurfaceFormat f;
+  f.setAlphaBufferSize(8);
+  f.setBlueBufferSize(8);
+  // f.setColorSpace();
+  f.setDepthBufferSize(8);
+  f.setGreenBufferSize(8);
+  f.setOption(QSurfaceFormat::DebugContext);
+  f.setOption(QSurfaceFormat::DeprecatedFunctions);
+  f.setProfile(QSurfaceFormat::CoreProfile);
+  f.setRedBufferSize(8);
+  f.setRenderableType(QSurfaceFormat::OpenGL);
+  f.setSamples(4);
+  f.setStencilBufferSize(8);
+  // f.setStereo();
+  f.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+  f.setVersion(3, 3);
+  QSurfaceFormat::setDefaultFormat(f);
 
   // MainWindow w;
   // w.resize(1920, 1080);
