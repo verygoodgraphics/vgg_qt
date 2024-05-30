@@ -18,10 +18,10 @@ erDiagram
 
 1. [Build](https://github.com/verygoodgraphics/vgg_runtime?tab=readme-ov-file#qt-building-example) VggContainer.
 2. Build Counter example.  
-   >Note: Change the vgg file [path](https://github.com/verygoodgraphics/vgg_qt/blob/main/examples/Counter/main.cpp#L17) if needed.
+   >Note: Change the vgg file [path](https://github.com/verygoodgraphics/vgg_qt/blob/main/VggContainer/example/main.cpp#L30) if needed.
 
 ``` bash
-cd /path/to/repo/examples/Counter
+cd /path/to/repo
 
 # Remove comment if you're building with clang
 # export CC=clang
@@ -43,7 +43,7 @@ cmake --build . --parallel --config Release
 ### CMake Project
 1. Add `VggContainer` library.
 ```
-add_subdirectory(<path/to/VggContainer> VggContainerBin)
+add_subdirectory(<path/to/VggContainer>)
 target_link_libraries(MyApp PRIVATE
     VggContainer
 )
