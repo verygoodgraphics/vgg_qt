@@ -1,22 +1,22 @@
-import QtQuick
-import QtQuick.Layouts
-import QtQuick.Controls
-import QtQuick.Controls.Material
-import VggQuickContainer
+import QtQuick 2.0
+import QtQuick.Window 2.0
+import QVggQuickItem 1.0
 
 Window {
-    width: 640
-    height: 400
+    width: 1920
+    height: 1080
     visible: true
     title: qsTr("VGG Qt Quick Demo")
+    color: 'lightblue'
 
-    VggQuickContainer {
+    QVggQuickItem {
         id: vgg
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.margins: 20
-        width: 100
-        height: 100
+        width: 800
+        height: 800
+
         fileSource: "/path/to/vgg/file"
     }
 }
