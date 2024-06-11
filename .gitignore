@@ -2,3 +2,4 @@ external/
 build/
 
 build-*
+.vs/
