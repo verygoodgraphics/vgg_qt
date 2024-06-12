@@ -1,11 +1,12 @@
 #include "QVggEventAdapter.hpp"
 #include "QVggQuickItem.h"
 #include <QGuiApplication>
-#include <iostream>
 
-// TODO qt5 and qt6 problem
+#ifdef VGG_USE_QT_6
+#define EVENT_POS position
+#else
 #define EVENT_POS pos
-// #define EVENT_POS position
+#endif // VGG_USE_QT_6
 
 std::vector<QThread*> QVggQuickItem::m_threads;
 
@@ -21,6 +22,7 @@ QVggRenderThread::QVggRenderThread(
   , m_container(container)
   , m_lock(lock)
   , m_needResetContainer{ false }
+  , m_needStopped{ false }
 {
 }
 
@@ -67,6 +69,7 @@ void QVggRenderThread::sizeChanged(QSize size)
 
 void QVggRenderThread::renderNext()
 {
+  if (!m_needStopped)
   {
     std::lock_guard<std::mutex> lock(m_lock);
     m_context->makeCurrent(m_surface);
@@ -94,7 +97,6 @@ void QVggRenderThread::renderNext()
     // m_context->functions()->glClearColor(0, 0, 0, 0);
     // m_context->functions()->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // TODO
     m_container->paint();
 
     // We need to flush the contents to the FBO before posting
@@ -103,7 +105,7 @@ void QVggRenderThread::renderNext()
     m_context->functions()->glFlush();
 
     m_renderFbo->bindDefault();
-    emit textureReady(m_renderFbo->texture(), m_size);
+    emit textureReady(m_renderFbo->toImage(false));
   }
 
   std::this_thread::sleep_for(std::chrono::milliseconds(16));
@@ -111,6 +113,10 @@ void QVggRenderThread::renderNext()
 
 void QVggRenderThread::shutDown()
 {
+  std::lock_guard<std::mutex> lock(m_lock);
+  m_needStopped = true;
+  m_container.reset(nullptr);
+
   m_context->makeCurrent(m_surface);
   delete m_renderFbo;
   m_context->doneCurrent();
@@ -125,13 +131,12 @@ void QVggRenderThread::shutDown()
 }
 
 QVggTextureNode::QVggTextureNode(QQuickWindow* window)
-  : m_id(0)
-  , m_size(0, 0)
-  , m_texture(nullptr)
+  : m_texture(nullptr)
   , m_window(window)
 {
-  // Our texture node must have a texture, so use the default 0 texture.
-  m_texture = m_window->createTextureFromId(0, QSize(1, 1));
+  // Our texture node must have a texture
+  QImage img(1, 1, QImage::Format_ARGB32);
+  m_texture = m_window->createTextureFromImage(img);
   setTexture(m_texture);
   setFiltering(QSGTexture::Linear);
 }
@@ -141,11 +146,10 @@ QVggTextureNode ::~QVggTextureNode()
   delete m_texture;
 }
 
-void QVggTextureNode::newTexture(int id, const QSize& size)
+void QVggTextureNode::newTexture(QImage image)
 {
   std::lock_guard<std::mutex> lock(m_lock);
-  m_id = id;
-  m_size = size;
+  m_image = image;
 
   // We cannot call QQuickWindow::update directly here, as this is only allowed
   // from the rendering thread or GUI thread.
@@ -155,16 +159,13 @@ void QVggTextureNode::newTexture(int id, const QSize& size)
 void QVggTextureNode::prepareNode()
 {
   std::lock_guard<std::mutex> lock(m_lock);
-  int                         newId = m_id;
-  QSize                       size = m_size;
-  m_id = 0;
 
-  if (newId)
+  if (!m_image.isNull())
   {
     delete m_texture;
-    m_texture = m_window->createTextureFromId(newId, size, QQuickWindow::TextureHasAlphaChannel);
-    setTexture(m_texture);
+    m_texture = m_window->createTextureFromImage(m_image, QQuickWindow::TextureHasAlphaChannel);
     markDirty(DirtyMaterial);
+    this->setTexture(m_texture);
 
     // This will notify the rendering thread that the texture is now being rendered
     // and it can start rendering to the other one.
@@ -191,6 +192,10 @@ QVggQuickItem::QVggQuickItem(QQuickItem* parent)
     &QVggRenderThread::setFileSource,
     Qt::QueuedConnection);
 
+  auto emitSizeChange = [this]() { emit sizeChanged(QSize(width(), height())); };
+
+  QObject::connect(this, &QVggQuickItem::widthChanged, emitSizeChange);
+  QObject::connect(this, &QVggQuickItem::heightChanged, emitSizeChange);
   QObject::connect(
     this,
     &QVggQuickItem::sizeChanged,
@@ -220,8 +225,7 @@ QVggQuickItem::QVggQuickItem(QQuickItem* parent)
 
 QVggQuickItem::~QVggQuickItem()
 {
-  // TODO can not return.
-  // m_container.reset();
+  assert(!m_container);
 }
 
 void QVggQuickItem::ready()
@@ -229,9 +233,15 @@ void QVggQuickItem::ready()
   m_renderThread->InitOffScreenSurface();
   m_renderThread->moveToThread(m_renderThread);
 
+  // connect(
+  //   window(),
+  //   &QQuickWindow::sceneGraphInvalidated,
+  //   m_renderThread,
+  //   &QVggRenderThread::shutDown,
+  //   Qt::QueuedConnection);
   connect(
     window(),
-    &QQuickWindow::sceneGraphInvalidated,
+    &QQuickWindow::closing,
     m_renderThread,
     &QVggRenderThread::shutDown,
     Qt::QueuedConnection);
@@ -367,12 +377,6 @@ void QVggQuickItem::wheelEvent(QWheelEvent* event)
   m_container->onEvent(evt);
 }
 
-void QVggQuickItem::geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry)
-{
-  emit sizeChanged(QSize(newGeometry.width(), newGeometry.height()));
-  QQuickItem::geometryChanged(newGeometry, oldGeometry);
-}
-
 QSGNode* QVggQuickItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* updatePaintNodeData)
 {
   std::lock_guard<std::mutex> lock(m_lock);
@@ -381,7 +385,9 @@ QSGNode* QVggQuickItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* u
 
   if (!m_renderThread->getOpenGLContext())
   {
-    QOpenGLContext* current = window()->openglContext();
+    // QOpenGLContext* current = window()->openglContext();
+    QOpenGLContext* current = QOpenGLContext::currentContext();
+
     // Some GL implementations requres that the currently bound m_context is
     // made non-current before we set up sharing, so we doneCurrent here
     // and makeCurrent down below while setting up our own m_context.
@@ -447,6 +453,7 @@ QSGNode* QVggQuickItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* u
   return node;
 }
 
+// TODO maybe delete at ~QVggQuickItem ?
 void QVggQuickItem::tearDown()
 {
   // As the render threads make use of our QGuiApplication object

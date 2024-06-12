@@ -13,8 +13,9 @@ int main(int argc, char* argv[])
   QGuiApplication app(argc, argv);
   qmlRegisterType<QVggQuickItem>("QVggQuickItem", 1, 0, "QVggQuickItem");
 
-  // qt6 need this
-  // QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+#ifdef VGG_USE_QT_6
+  QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+#endif // VGG_USE_QT_6
 
   QObject::connect(&app, &QGuiApplication::aboutToQuit, [&]() { VGG::Environment::tearDown(); });
 
