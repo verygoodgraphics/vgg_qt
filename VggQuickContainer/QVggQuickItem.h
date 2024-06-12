@@ -15,7 +15,6 @@
 
 typedef std::unique_ptr<VGG::QtQuickContainer> TVggQuickContainer;
 
-// TODO limit thread count, just link QQuickItem::updatePaintNode thread.
 class QVggRenderThread : public QThread
 {
   Q_OBJECT
@@ -35,7 +34,7 @@ public slots:
   void shutDown();
 
 signals:
-  void textureReady(int id, const QSize& size);
+  void textureReady(QImage image);
 
 private:
   QOffscreenSurface*        m_surface;
@@ -44,9 +43,10 @@ private:
   QString                   m_fileSource;
   QSize                     m_size;
   double                    m_dpi;  // TODO
-  bool                      m_needResetContainer;
-  std::mutex&               m_lock;
   TVggQuickContainer&       m_container;
+  std::mutex&               m_lock;
+  bool                      m_needResetContainer;
+  bool                      m_needStopped;
 };
 
 class QVggTextureNode
@@ -66,14 +66,13 @@ signals:
 public slots:
   // This function gets called on the FBO rendering thread and will store the
   // texture id and size and schedule an update on the window.
-  void newTexture(int id, const QSize& size);
+  void newTexture(QImage);
 
   // Before the scene graph starts to render, we update to the pending texture
   void prepareNode();
 
 private:
-  int           m_id;
-  QSize         m_size;
+  QImage        m_image;
   std::mutex    m_lock;
   QSGTexture*   m_texture;
   QQuickWindow* m_window;
@@ -119,7 +118,6 @@ protected:
   virtual void     keyReleaseEvent(QKeyEvent* event) override;
   virtual void     mousePressEvent(QMouseEvent* event) override;
   virtual void     wheelEvent(QWheelEvent* event) override;
-  virtual void     geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry) override;
 
 private:
   QString                      m_fileSource;
