@@ -20,10 +20,7 @@ class QVggRenderThread : public QThread
   Q_OBJECT
 
 public:
-  QVggRenderThread(
-    TVggQuickContainer&         container,
-    std::shared_ptr<std::mutex> lock,
-    QObject*                    creator);
+  QVggRenderThread(TVggQuickContainer& container, std::mutex& lock, QObject* creator);
 
 public:
   void InitOffScreenSurface();
@@ -40,17 +37,17 @@ signals:
   void textureReady(QImage image);
 
 private:
-  QOffscreenSurface*          m_surface;
-  QOpenGLContext*             m_context;
-  QOpenGLFramebufferObject*   m_renderFbo;
-  QString                     m_fileSource;
-  QSize                       m_size;
-  double                      m_dpi; // TODO
-  TVggQuickContainer&         m_container;
-  std::shared_ptr<std::mutex> m_lock;
-  bool                        m_needResetContainer;
-  bool                        m_needStopped;
-  QObject*                    m_creator;
+  QOffscreenSurface*        m_surface;
+  QOpenGLContext*           m_context;
+  QOpenGLFramebufferObject* m_renderFbo;
+  QString                   m_fileSource;
+  QSize                     m_size;
+  double                    m_dpi; // TODO
+  TVggQuickContainer&       m_container;
+  std::mutex&               m_lock;
+  bool                      m_needResetContainer;
+  bool                      m_needStopped;
+  QObject*                  m_creator;
 };
 
 class QVggTextureNode
@@ -121,10 +118,10 @@ protected:
   virtual void     wheelEvent(QWheelEvent* event) override;
 
 private:
-  QString                     m_fileSource;
-  TVggQuickContainer          m_container;
-  std::shared_ptr<std::mutex> m_lock;
-  QTimer                      m_dispatchTimer;
-  QPointF                     m_lastMouseMovePosition;
-  QVggRenderThread*           m_renderThread;
+  QString            m_fileSource;
+  TVggQuickContainer m_container;
+  std::mutex         m_lock;
+  QTimer             m_dispatchTimer;
+  QPointF            m_lastMouseMovePosition;
+  QVggRenderThread*  m_renderThread;
 };

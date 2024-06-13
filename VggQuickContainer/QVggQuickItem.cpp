@@ -9,9 +9,9 @@
 #endif // VGG_USE_QT_6
 
 QVggRenderThread::QVggRenderThread(
-  TVggQuickContainer&         container,
-  std::shared_ptr<std::mutex> lock,
-  QObject*                    creator)
+  TVggQuickContainer& container,
+  std::mutex&         lock,
+  QObject*            creator)
   : m_surface(nullptr)
   , m_context(nullptr)
   , m_renderFbo(nullptr)
@@ -49,7 +49,7 @@ auto QVggRenderThread::getOpenGLContext()
 
 void QVggRenderThread::setFileSource(QString str)
 {
-  std::lock_guard<std::mutex> lock(*m_lock);
+  std::lock_guard<std::mutex> lock(m_lock);
   m_fileSource = str;
   m_needResetContainer = true;
 }
@@ -61,7 +61,7 @@ void QVggRenderThread::sizeChanged(QSize size)
     return;
   }
 
-  std::lock_guard<std::mutex> lock(*m_lock);
+  std::lock_guard<std::mutex> lock(m_lock);
   m_size = size;
   m_needResetContainer = true;
 }
@@ -70,7 +70,7 @@ void QVggRenderThread::renderNext()
 {
   if (!m_needStopped)
   {
-    std::lock_guard<std::mutex> lock(*m_lock);
+    std::lock_guard<std::mutex> lock(m_lock);
     m_context->makeCurrent(m_surface);
 
     if (!m_renderFbo || m_needResetContainer)
@@ -82,8 +82,9 @@ void QVggRenderThread::renderNext()
 
       m_container.reset(
         new VGG::QtQuickContainer(m_size.width(), m_size.height(), m_dpi, m_renderFbo->handle()));
-      m_container->load(m_fileSource.toStdString());
+      // m_container->sdk()->setFitToViewportEnabled(false);
       m_container->sdk()->setBackgroundColor(0); // 0 for SK_ColorTRANSPARENT
+      m_container->load(m_fileSource.toStdString());
 
       m_needResetContainer = false;
     }
@@ -113,7 +114,7 @@ void QVggRenderThread::renderNext()
 
 void QVggRenderThread::shutDown()
 {
-  std::lock_guard<std::mutex> lock(*m_lock);
+  std::lock_guard<std::mutex> lock(m_lock);
   m_needStopped = true;
   m_container.reset(nullptr);
 
@@ -181,7 +182,6 @@ QVggQuickItem::QVggQuickItem(QQuickItem* parent)
   // QQuickItem to create a visual item, you will need to uncomment the
   // following line and re-implement updatePaintNode()
   setFlag(ItemHasContents, true);
-  m_lock.reset(new std::mutex);
 
   m_renderThread = new QVggRenderThread(m_container, m_lock, this);
 
@@ -212,7 +212,7 @@ QVggQuickItem::QVggQuickItem(QQuickItem* parent)
     this,
     [this]()
     {
-      std::lock_guard<std::mutex> lock(*m_lock);
+      std::lock_guard<std::mutex> lock(m_lock);
 
       if (!m_container)
       {
@@ -272,7 +272,7 @@ void QVggQuickItem::setFileSource(const QString& src)
 
 void QVggQuickItem::setEventListener(QVggQuickItem::EventListener listener)
 {
-  std::lock_guard<std::mutex> lock(*m_lock);
+  std::lock_guard<std::mutex> lock(m_lock);
 
   if (!m_container)
   {
@@ -318,7 +318,7 @@ void QVggQuickItem::fillVggEvent(UEvent& vggEvent, QMouseEvent* mouseEvent)
 
 void QVggQuickItem::keyPressEvent(QKeyEvent* event)
 {
-  std::lock_guard<std::mutex> lock(*m_lock);
+  std::lock_guard<std::mutex> lock(m_lock);
 
   if (!m_container)
   {
@@ -331,7 +331,7 @@ void QVggQuickItem::keyPressEvent(QKeyEvent* event)
 
 void QVggQuickItem::keyReleaseEvent(QKeyEvent* event)
 {
-  std::lock_guard<std::mutex> lock(*m_lock);
+  std::lock_guard<std::mutex> lock(m_lock);
 
   if (!m_container)
   {
@@ -344,7 +344,7 @@ void QVggQuickItem::keyReleaseEvent(QKeyEvent* event)
 
 void QVggQuickItem::mousePressEvent(QMouseEvent* event)
 {
-  std::lock_guard<std::mutex> lock(*m_lock);
+  std::lock_guard<std::mutex> lock(m_lock);
 
   if (!m_container)
   {
@@ -360,7 +360,7 @@ void QVggQuickItem::mousePressEvent(QMouseEvent* event)
 
 void QVggQuickItem::mouseMoveEvent(QMouseEvent* event)
 {
-  std::lock_guard<std::mutex> lock(*m_lock);
+  std::lock_guard<std::mutex> lock(m_lock);
 
   if (!m_container)
   {
@@ -383,7 +383,7 @@ void QVggQuickItem::mouseMoveEvent(QMouseEvent* event)
 
 void QVggQuickItem::mouseReleaseEvent(QMouseEvent* event)
 {
-  std::lock_guard<std::mutex> lock(*m_lock);
+  std::lock_guard<std::mutex> lock(m_lock);
 
   if (!m_container)
   {
@@ -399,7 +399,7 @@ void QVggQuickItem::mouseReleaseEvent(QMouseEvent* event)
 
 void QVggQuickItem::wheelEvent(QWheelEvent* event)
 {
-  std::lock_guard<std::mutex> lock(*m_lock);
+  std::lock_guard<std::mutex> lock(m_lock);
 
   if (!m_container)
   {
@@ -424,7 +424,7 @@ void QVggQuickItem::wheelEvent(QWheelEvent* event)
 
 QSGNode* QVggQuickItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* updatePaintNodeData)
 {
-  std::lock_guard<std::mutex> lock(*m_lock);
+  // std::lock_guard<std::mutex> lock(m_lock);
 
   QVggTextureNode* node = static_cast<QVggTextureNode*>(oldNode);
 
