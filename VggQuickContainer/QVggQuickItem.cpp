@@ -84,7 +84,7 @@ void QVggRenderThread::renderNext()
         new VGG::QtQuickContainer(m_size.width(), m_size.height(), m_dpi, m_renderFbo->handle()));
       // m_container->sdk()->setFitToViewportEnabled(false);
       m_container->sdk()->setBackgroundColor(0); // 0 for SK_ColorTRANSPARENT
-      m_container->load(m_fileSource.toStdString());
+      m_container->load(m_fileSource.toLocal8Bit().toStdString());
 
       m_needResetContainer = false;
     }
