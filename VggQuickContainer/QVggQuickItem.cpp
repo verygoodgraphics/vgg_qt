@@ -8,21 +8,20 @@
 #define EVENT_POS pos
 #endif // VGG_USE_QT_6
 
-std::vector<QThread*> QVggQuickItem::m_threads;
-
 QVggRenderThread::QVggRenderThread(
-  const QSize&        size,
-  TVggQuickContainer& container,
-  std::mutex&         lock)
+  TVggQuickContainer&         container,
+  std::shared_ptr<std::mutex> lock,
+  QObject*                    creator)
   : m_surface(nullptr)
   , m_context(nullptr)
   , m_renderFbo(nullptr)
-  , m_size(size)
+  , m_size(1, 1)
   , m_dpi{ 1.0 }
   , m_container(container)
   , m_lock(lock)
   , m_needResetContainer{ false }
   , m_needStopped{ false }
+  , m_creator(creator)
 {
 }
 
@@ -50,7 +49,7 @@ auto QVggRenderThread::getOpenGLContext()
 
 void QVggRenderThread::setFileSource(QString str)
 {
-  std::lock_guard<std::mutex> lock(m_lock);
+  std::lock_guard<std::mutex> lock(*m_lock);
   m_fileSource = str;
   m_needResetContainer = true;
 }
@@ -62,7 +61,7 @@ void QVggRenderThread::sizeChanged(QSize size)
     return;
   }
 
-  std::lock_guard<std::mutex> lock(m_lock);
+  std::lock_guard<std::mutex> lock(*m_lock);
   m_size = size;
   m_needResetContainer = true;
 }
@@ -71,7 +70,7 @@ void QVggRenderThread::renderNext()
 {
   if (!m_needStopped)
   {
-    std::lock_guard<std::mutex> lock(m_lock);
+    std::lock_guard<std::mutex> lock(*m_lock);
     m_context->makeCurrent(m_surface);
 
     if (!m_renderFbo || m_needResetContainer)
@@ -84,6 +83,7 @@ void QVggRenderThread::renderNext()
       m_container.reset(
         new VGG::QtQuickContainer(m_size.width(), m_size.height(), m_dpi, m_renderFbo->handle()));
       m_container->load(m_fileSource.toStdString());
+      m_container->sdk()->setBackgroundColor(0); // 0 for SK_ColorTRANSPARENT
 
       m_needResetContainer = false;
     }
@@ -113,7 +113,7 @@ void QVggRenderThread::renderNext()
 
 void QVggRenderThread::shutDown()
 {
-  std::lock_guard<std::mutex> lock(m_lock);
+  std::lock_guard<std::mutex> lock(*m_lock);
   m_needStopped = true;
   m_container.reset(nullptr);
 
@@ -127,7 +127,7 @@ void QVggRenderThread::shutDown()
 
   // Stop event processing, move the thread to GUI and make sure it is deleted.
   exit();
-  moveToThread(QGuiApplication::instance()->thread());
+  moveToThread(m_creator->thread());
 }
 
 QVggTextureNode::QVggTextureNode(QQuickWindow* window)
@@ -166,6 +166,7 @@ void QVggTextureNode::prepareNode()
     m_texture = m_window->createTextureFromImage(m_image, QQuickWindow::TextureHasAlphaChannel);
     markDirty(DirtyMaterial);
     this->setTexture(m_texture);
+    this->setRect(QRectF(0, 0, m_image.width(), m_image.height()));
 
     // This will notify the rendering thread that the texture is now being rendered
     // and it can start rendering to the other one.
@@ -180,11 +181,10 @@ QVggQuickItem::QVggQuickItem(QQuickItem* parent)
   // QQuickItem to create a visual item, you will need to uncomment the
   // following line and re-implement updatePaintNode()
   setFlag(ItemHasContents, true);
+  m_lock.reset(new std::mutex);
 
-  m_renderThread = new QVggRenderThread(QSize(1, 1), m_container, m_lock);
-  QVggQuickItem::m_threads.emplace_back(m_renderThread);
+  m_renderThread = new QVggRenderThread(m_container, m_lock, this);
 
-  // TODO should m_renderThread call exec()?
   QObject::connect(
     this,
     &QVggQuickItem::fileSourceChanged,
@@ -212,7 +212,7 @@ QVggQuickItem::QVggQuickItem(QQuickItem* parent)
     this,
     [this]()
     {
-      std::lock_guard<std::mutex> lock(m_lock);
+      std::lock_guard<std::mutex> lock(*m_lock);
 
       if (!m_container)
       {
@@ -225,7 +225,10 @@ QVggQuickItem::QVggQuickItem(QQuickItem* parent)
 
 QVggQuickItem::~QVggQuickItem()
 {
+  QMetaObject::invokeMethod(m_renderThread, "shutDown", Qt::QueuedConnection);
+  m_renderThread->wait();
   assert(!m_container);
+  delete m_renderThread;
 }
 
 void QVggQuickItem::ready()
@@ -239,12 +242,13 @@ void QVggQuickItem::ready()
   //   m_renderThread,
   //   &QVggRenderThread::shutDown,
   //   Qt::QueuedConnection);
-  connect(
-    window(),
-    &QQuickWindow::closing,
-    m_renderThread,
-    &QVggRenderThread::shutDown,
-    Qt::QueuedConnection);
+
+  // connect(
+  //   window(),
+  //   &QQuickWindow::closing,
+  //   m_renderThread,
+  //   &QVggRenderThread::shutDown,
+  //   Qt::QueuedConnection);
 
   m_renderThread->start();
   update();
@@ -268,7 +272,12 @@ void QVggQuickItem::setFileSource(const QString& src)
 
 void QVggQuickItem::setEventListener(QVggQuickItem::EventListener listener)
 {
-  std::lock_guard<std::mutex> lock(m_lock);
+  std::lock_guard<std::mutex> lock(*m_lock);
+
+  if (!m_container)
+  {
+    return;
+  }
 
   if (listener)
   {
@@ -309,22 +318,40 @@ void QVggQuickItem::fillVggEvent(UEvent& vggEvent, QMouseEvent* mouseEvent)
 
 void QVggQuickItem::keyPressEvent(QKeyEvent* event)
 {
-  std::lock_guard<std::mutex> lock(m_lock);
-  auto                        vggEvent = QVggEventAdapter::keyPressEvent(event);
+  std::lock_guard<std::mutex> lock(*m_lock);
+
+  if (!m_container)
+  {
+    return;
+  }
+
+  auto vggEvent = QVggEventAdapter::keyPressEvent(event);
   m_container->onEvent(vggEvent);
 }
 
 void QVggQuickItem::keyReleaseEvent(QKeyEvent* event)
 {
-  std::lock_guard<std::mutex> lock(m_lock);
-  auto                        vggEvent = QVggEventAdapter::keyReleaseEvent(event);
+  std::lock_guard<std::mutex> lock(*m_lock);
+
+  if (!m_container)
+  {
+    return;
+  }
+
+  auto vggEvent = QVggEventAdapter::keyReleaseEvent(event);
   m_container->onEvent(vggEvent);
 }
 
 void QVggQuickItem::mousePressEvent(QMouseEvent* event)
 {
-  std::lock_guard<std::mutex> lock(m_lock);
-  UEvent                      evt;
+  std::lock_guard<std::mutex> lock(*m_lock);
+
+  if (!m_container)
+  {
+    return;
+  }
+
+  UEvent evt;
   evt.button.type = VGG_MOUSEBUTTONDOWN;
   fillVggEvent(evt, event);
 
@@ -333,8 +360,14 @@ void QVggQuickItem::mousePressEvent(QMouseEvent* event)
 
 void QVggQuickItem::mouseMoveEvent(QMouseEvent* event)
 {
-  std::lock_guard<std::mutex> lock(m_lock);
-  UEvent                      evt;
+  std::lock_guard<std::mutex> lock(*m_lock);
+
+  if (!m_container)
+  {
+    return;
+  }
+
+  UEvent evt;
   evt.motion.type = VGG_MOUSEMOTION;
   evt.motion.windowX = event->EVENT_POS().x();
   evt.motion.windowY = event->EVENT_POS().y();
@@ -350,8 +383,14 @@ void QVggQuickItem::mouseMoveEvent(QMouseEvent* event)
 
 void QVggQuickItem::mouseReleaseEvent(QMouseEvent* event)
 {
-  std::lock_guard<std::mutex> lock(m_lock);
-  UEvent                      evt;
+  std::lock_guard<std::mutex> lock(*m_lock);
+
+  if (!m_container)
+  {
+    return;
+  }
+
+  UEvent evt;
   evt.button.type = VGG_MOUSEBUTTONUP;
   fillVggEvent(evt, event);
 
@@ -360,8 +399,14 @@ void QVggQuickItem::mouseReleaseEvent(QMouseEvent* event)
 
 void QVggQuickItem::wheelEvent(QWheelEvent* event)
 {
-  std::lock_guard<std::mutex> lock(m_lock);
-  UEvent                      evt;
+  std::lock_guard<std::mutex> lock(*m_lock);
+
+  if (!m_container)
+  {
+    return;
+  }
+
+  UEvent evt;
   evt.wheel.type = VGG_MOUSEWHEEL;
 
   auto p = event->EVENT_POS();
@@ -379,7 +424,7 @@ void QVggQuickItem::wheelEvent(QWheelEvent* event)
 
 QSGNode* QVggQuickItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* updatePaintNodeData)
 {
-  std::lock_guard<std::mutex> lock(m_lock);
+  std::lock_guard<std::mutex> lock(*m_lock);
 
   QVggTextureNode* node = static_cast<QVggTextureNode*>(oldNode);
 
@@ -449,19 +494,6 @@ QSGNode* QVggQuickItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* u
     QMetaObject::invokeMethod(m_renderThread, "renderNext", Qt::QueuedConnection);
   }
 
-  node->setRect(boundingRect());
+  // node->setRect(boundingRect());
   return node;
-}
-
-// TODO maybe delete at ~QVggQuickItem ?
-void QVggQuickItem::tearDown()
-{
-  // As the render threads make use of our QGuiApplication object
-  // to clean up gracefully, wait for them to finish before
-  // QGuiApp is taken off the heap.
-  for (auto item : m_threads)
-  {
-    item->wait();
-    delete item;
-  }
 }

@@ -20,7 +20,10 @@ class QVggRenderThread : public QThread
   Q_OBJECT
 
 public:
-  QVggRenderThread(const QSize& size, TVggQuickContainer& container, std::mutex& lock);
+  QVggRenderThread(
+    TVggQuickContainer&         container,
+    std::shared_ptr<std::mutex> lock,
+    QObject*                    creator);
 
 public:
   void InitOffScreenSurface();
@@ -37,16 +40,17 @@ signals:
   void textureReady(QImage image);
 
 private:
-  QOffscreenSurface*        m_surface;
-  QOpenGLContext*           m_context;
-  QOpenGLFramebufferObject* m_renderFbo;
-  QString                   m_fileSource;
-  QSize                     m_size;
-  double                    m_dpi;  // TODO
-  TVggQuickContainer&       m_container;
-  std::mutex&               m_lock;
-  bool                      m_needResetContainer;
-  bool                      m_needStopped;
+  QOffscreenSurface*          m_surface;
+  QOpenGLContext*             m_context;
+  QOpenGLFramebufferObject*   m_renderFbo;
+  QString                     m_fileSource;
+  QSize                       m_size;
+  double                      m_dpi; // TODO
+  TVggQuickContainer&         m_container;
+  std::shared_ptr<std::mutex> m_lock;
+  bool                        m_needResetContainer;
+  bool                        m_needStopped;
+  QObject*                    m_creator;
 };
 
 class QVggTextureNode
@@ -100,9 +104,6 @@ public:
   void    setEventListener(EventListener listener);
   void    fillVggEvent(UEvent& vggEvent, QMouseEvent* mouseEvent);
 
-public:
-  static void tearDown();
-
 signals:
   void fileSourceChanged(QString newFileSource);
   void sizeChanged(QSize size);
@@ -120,11 +121,10 @@ protected:
   virtual void     wheelEvent(QWheelEvent* event) override;
 
 private:
-  QString                      m_fileSource;
-  TVggQuickContainer           m_container;
-  std::mutex                   m_lock;
-  QTimer                       m_dispatchTimer;
-  QPointF                      m_lastMouseMovePosition;
-  QVggRenderThread*            m_renderThread;
-  static std::vector<QThread*> m_threads;
+  QString                     m_fileSource;
+  TVggQuickContainer          m_container;
+  std::shared_ptr<std::mutex> m_lock;
+  QTimer                      m_dispatchTimer;
+  QPointF                     m_lastMouseMovePosition;
+  QVggRenderThread*           m_renderThread;
 };
