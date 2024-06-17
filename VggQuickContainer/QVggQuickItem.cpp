@@ -20,6 +20,7 @@ QVggRenderThread::QVggRenderThread(
   , m_container(container)
   , m_lock(lock)
   , m_needResetContainer{ false }
+  , m_sizeChanged{ false }
   , m_needStopped{ false }
   , m_creator(creator)
 {
@@ -47,6 +48,16 @@ auto QVggRenderThread::getOpenGLContext()
   return m_context;
 }
 
+void QVggRenderThread::setFbo(QOpenGLFramebufferObject* fbo)
+{
+  m_renderFbo = fbo;
+}
+
+QOpenGLFramebufferObject* QVggRenderThread::getFbo()
+{
+  return m_renderFbo;
+}
+
 void QVggRenderThread::setFileSource(QString str)
 {
   std::lock_guard<std::mutex> lock(m_lock);
@@ -63,7 +74,7 @@ void QVggRenderThread::sizeChanged(QSize size)
 
   std::lock_guard<std::mutex> lock(m_lock);
   m_size = size;
-  m_needResetContainer = true;
+  m_sizeChanged = true;
 }
 
 void QVggRenderThread::renderNext()
@@ -80,13 +91,22 @@ void QVggRenderThread::renderNext()
       delete m_renderFbo;
       m_renderFbo = new QOpenGLFramebufferObject(m_size, format);
 
-      m_container.reset(
-        new VGG::QtQuickContainer(m_size.width(), m_size.height(), m_dpi, m_renderFbo->handle()));
+      m_container.reset(new VGG::QtQuickContainer(
+        std::max(m_size.width(), 1),
+        std::max(m_size.height(), 1),
+        m_dpi,
+        m_renderFbo->handle()));
       // m_container->sdk()->setFitToViewportEnabled(false);
       m_container->sdk()->setBackgroundColor(0); // 0 for SK_ColorTRANSPARENT
       m_container->load(m_fileSource.toLocal8Bit().toStdString());
 
       m_needResetContainer = false;
+      m_sizeChanged = false;
+    }
+
+    if (m_sizeChanged)
+    {
+      m_container->setFboID(m_renderFbo->handle());
     }
 
     m_renderFbo->bind();
@@ -98,7 +118,7 @@ void QVggRenderThread::renderNext()
     // m_context->functions()->glClearColor(0, 0, 0, 0);
     // m_context->functions()->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    m_container->paint();
+    m_container->paint(m_sizeChanged);
 
     // We need to flush the contents to the FBO before posting
     // the texture to the other thread, otherwise, we might
@@ -106,6 +126,8 @@ void QVggRenderThread::renderNext()
     m_context->functions()->glFlush();
 
     m_renderFbo->bindDefault();
+
+    m_sizeChanged = false;
     emit textureReady(m_renderFbo->toImage(false));
   }
 
@@ -192,7 +214,33 @@ QVggQuickItem::QVggQuickItem(QQuickItem* parent)
     &QVggRenderThread::setFileSource,
     Qt::QueuedConnection);
 
-  auto emitSizeChange = [this]() { emit sizeChanged(QSize(width(), height())); };
+  auto emitSizeChange = [this]()
+  {
+    auto w = std::max(static_cast<int>(width()), 1);
+    auto h = std::max(static_cast<int>(height()), 1);
+
+    {
+      std::lock_guard<std::mutex> lock(m_lock);
+
+      if (m_container)
+      {
+        // TODO
+        auto scale = 1.0; // m_api->windowHandle()->devicePixelRatio();
+
+        UEvent evt;
+        evt.window.type = VGG_WINDOWEVENT;
+        evt.window.event = VGG_WINDOWEVENT_SIZE_CHANGED;
+        evt.window.data1 = w;
+        evt.window.data2 = h;
+        evt.window.drawableWidth = w * scale;
+        evt.window.drawableHeight = h * scale;
+
+        m_container->onEvent(evt);
+      }
+    }
+
+    emit sizeChanged(QSize(w, h));
+  };
 
   QObject::connect(this, &QVggQuickItem::widthChanged, emitSizeChange);
   QObject::connect(this, &QVggQuickItem::heightChanged, emitSizeChange);
@@ -492,6 +540,21 @@ QSGNode* QVggQuickItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData* u
 
     // Get the production of FBO textures started..
     QMetaObject::invokeMethod(m_renderThread, "renderNext", Qt::QueuedConnection);
+  }
+
+  if (width() > 0 && height() > 0 && QOpenGLContext::currentContext())
+  {
+    std::lock_guard<std::mutex> lock(m_lock);
+
+    QOpenGLFramebufferObjectFormat format;
+    format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+
+    if (m_renderThread->getFbo())
+    {
+      delete m_renderThread->getFbo();
+    }
+
+    m_renderThread->setFbo(new QOpenGLFramebufferObject(QSize(width(), height()), format));
   }
 
   // node->setRect(boundingRect());

@@ -27,6 +27,9 @@ public:
   void InitOpenGLContext(QOpenGLContext* sharedContext);
   auto getOpenGLContext();
 
+  void                      setFbo(QOpenGLFramebufferObject* fbo);
+  QOpenGLFramebufferObject* getFbo();
+
 public slots:
   void setFileSource(QString str);
   void sizeChanged(QSize size);
@@ -42,10 +45,11 @@ private:
   QOpenGLFramebufferObject* m_renderFbo;
   QString                   m_fileSource;
   QSize                     m_size;
-  double                    m_dpi; // TODO
+  double                    m_dpi;
   TVggQuickContainer&       m_container;
   std::mutex&               m_lock;
   bool                      m_needResetContainer;
+  bool                      m_sizeChanged;
   bool                      m_needStopped;
   QObject*                  m_creator;
 };
