@@ -115,6 +115,7 @@ public Q_SLOTS:
 protected:
   virtual QSGNode* updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*) override;
   virtual void     mouseMoveEvent(QMouseEvent* event) override;
+  void             hoverMoveEvent(QHoverEvent* event) override;
   virtual void     mouseReleaseEvent(QMouseEvent* event) override;
   virtual void     keyPressEvent(QKeyEvent* event) override;
   virtual void     keyReleaseEvent(QKeyEvent* event) override;

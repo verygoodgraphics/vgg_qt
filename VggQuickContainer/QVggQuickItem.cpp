@@ -252,6 +252,7 @@ QVggQuickItem::QVggQuickItem(QQuickItem* parent)
     Qt::QueuedConnection);
 
   this->setAcceptedMouseButtons(Qt::MouseButton::AllButtons);
+  this->setAcceptHoverEvents(true);
 
   m_dispatchTimer.setInterval(16);
   QObject::connect(
@@ -427,6 +428,14 @@ void QVggQuickItem::mouseMoveEvent(QMouseEvent* event)
   m_container->onEvent(evt);
 
   m_lastMouseMovePosition = event->EVENT_POS();
+}
+
+void QVggQuickItem::hoverMoveEvent(QHoverEvent* event)
+{
+  QMouseEvent
+    mouseEvent(QEvent::MouseMove, event->posF(), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+  QCoreApplication::sendEvent(this, &mouseEvent);
+  QQuickItem::hoverMoveEvent(event);
 }
 
 void QVggQuickItem::mouseReleaseEvent(QMouseEvent* event)
